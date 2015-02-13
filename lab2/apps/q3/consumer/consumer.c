@@ -39,7 +39,7 @@ void main (int argc, char *argv[])
     }
     while(lock_acquire(h_cb_lock) != SYNC_SUCCESS);
     // CRITICAL SECTION
-    Printf("Consumer %d ", getpid()); Printf("inserted: %c\n", cb->buffer[cb->head]);
+    Printf("Consumer %d ", getpid()); Printf("removed: %c\n", cb->buffer[cb->head]);
     cb->head = (cb->head + 1) % BUFFER_SIZE;
     if(sem_signal(s_emptyslots) != SYNC_SUCCESS) {
       Printf("Bad semaphore s_emptyslots (%d) in ", s_emptyslots); Printf(argv[0]); Printf(", exiting...\n");

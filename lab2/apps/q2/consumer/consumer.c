@@ -40,7 +40,7 @@ void main (int argc, char *argv[])
       }
     }
     // CRITICAL SECTION
-    Printf("Consumer %d ", getpid()); Printf("inserted: %c\n", cb->buffer[cb->head]);
+    Printf("Consumer %d ", getpid()); Printf("removed: %c\n", cb->buffer[cb->head]);
     cb->head = (cb->head + 1) % BUFFER_SIZE;    
     while(lock_release(h_cb_lock) != SYNC_SUCCESS);
   }

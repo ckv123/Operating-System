@@ -10,18 +10,20 @@ void main (int argc, char *argv[])
   uint32 h_mem;             // Handle to the shared memory page
   sem_t h_procs_sem;  // Semaphore to signal the original process that we're done
   lock_t h_cb_lock;
-  char msg[] = THE_MSG;
+  cond_t h_nFull_cv, h_nEmpty_cv;
   int i;
 
-  if (argc != 4) { 
-    Printf("Usage: "); Printf(argv[0]); Printf(" <handle_to_shared_memory_page> <handle_to_page_mapped_semaphore> <lock handle>\n"); 
-    Exit();
-  } 
+  // if (argc != 4) { 
+  //   Printf("Usage: "); Printf(argv[0]); Printf(" <handle_to_shared_memory_page> <handle_to_page_mapped_semaphore> <lock handle>\n"); 
+  //   Exit();
+  // } 
 
   // Convert the command-line strings into integers for use as handles
   h_mem = dstrtol(argv[1], NULL, 10); // The "10" means base 10
   h_procs_sem = dstrtol(argv[2], NULL, 10);
   h_cb_lock = dstrtol(argv[3], NULL, 10);
+  h_nFull_cv = dstrtol(argv[4], NULL, 10);
+  h_nEmpty_cv = dstrtol(argv[5], NULL, 10);
 
   // Map shared memory page into this process's memory space
   if ((cb = (circular_buffer *)shmat(h_mem)) == NULL) {
@@ -30,20 +32,14 @@ void main (int argc, char *argv[])
   }
   
   for(i = 0; i < THE_MSG_LENGTH; i++) {
-    while(1) {
-      while(lock_acquire(h_cb_lock) != SYNC_SUCCESS);
-      if(cb->head == ((cb->tail + 1) % BUFFER_SIZE)) { // buffer full
-        lock_release(h_cb_lock);
-        continue;
-      }
-      else {
-        break;
-      }
+    while(lock_acquire(h_cb_lock) != SYNC_SUCCESS);
+    while(cb->head == cb->tail) { // buffer empty
+      cond_wait(h_nEmpty_cv);
     }
     // CRITICAL SECTION
-    cb->buffer[cb->tail] = msg[i];
-    Printf("Producer %d ", getpid()); Printf("inserted: %c\n", cb->buffer[cb->tail]);
-    cb->tail = (cb->tail + 1) % BUFFER_SIZE;  
+    Printf("Consumer %d ", getpid()); Printf("removed: %c\n", cb->buffer[cb->head]);
+    cb->head = (cb->head + 1) % BUFFER_SIZE;    
+    cond_signal(h_nFull_cv);
     while(lock_release(h_cb_lock) != SYNC_SUCCESS);
   }
 

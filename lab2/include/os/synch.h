@@ -35,10 +35,10 @@ typedef int cond_t;
 #define INVALID_PROC -1
 #define INVALID_COND -1
 typedef struct Sem {
+    //used by any process
     Queue	waiting;
     int		count;
     uint32	inuse; 		//indicates whether the semaphore is being
-    				//used by any process
 } Sem;
 
 int SemInit (Sem *, int);
@@ -56,7 +56,10 @@ int LockAcquire(Lock *);
 int LockRelease(Lock *);
 
 typedef struct Cond {
-  // Your code goes here
+  //used by any process
+  Queue waiting;
+  lock_t h_lock;
+  int inuse;     // Bookkeeping variable for free vs. used structures
 } Cond;
 
 int CondInit(Cond *);

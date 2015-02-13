@@ -12,8 +12,6 @@ int Open(char *filename, int arg2);
 void Printf(char *format, ...);
 void Exit();
 
-// Added by Aaron for Lab 1
 int getpid();
-// End Aaron, lab 1
 
 #endif
