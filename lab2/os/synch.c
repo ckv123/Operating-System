@@ -412,7 +412,7 @@ int CondWait(Cond* c) {
   LockHandleRelease(c->h_lock);
   RestoreIntrs (intrval); // Restore interrupts before sleeping
   ProcessSleep();
-  LockHandleAcquire(c->h_lock);
+  LockHandleAcquire(c->h_lock); 
   return SYNC_SUCCESS;
 }
 
