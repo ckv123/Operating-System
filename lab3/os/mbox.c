@@ -7,7 +7,7 @@
 
 static mbox mboxes[MBOX_NUM_MBOXES];
 static mbox_message mbox_buffers[MBOX_NUM_BUFFERS];
-static sem_t s_buff_emptyslots;
+// static sem_t s_buff_emptyslots;
 static lock_t l_buff;
 //-------------------------------------------------------
 //
@@ -43,10 +43,10 @@ void MboxModuleInit() {
 	for(i = 0; i < MBOX_NUM_BUFFERS; i++) {
 		mbox_buffers[i].inuse = false;		
 	}
-	if ((s_buff_emptyslots = SemCreate(MBOX_NUM_BUFFERS - 1)) == SYNC_FAIL) {
-		printf("Bad sem_create in MboxModInit");
-		exitsim();
-	}
+	// if ((s_buff_emptyslots = SemCreate(MBOX_NUM_BUFFERS - 1)) == SYNC_FAIL) {
+	// 	printf("Bad sem_create in MboxModInit");
+	// 	exitsim();
+	// }
 	if((l_buff = LockCreate()) == SYNC_FAIL) {
 		printf("Bad lock_create in MboxModInit");
 		exitsim();
@@ -194,10 +194,11 @@ int MboxSend(mbox_t handle, int length, void* message) {
 	if(length > MBOX_MAX_MESSAGE_LENGTH) {
 		return MBOX_FAIL;
 	}
-
+	// printf("***%d Waiting on mbox empty slot\n", cpid);
 	SemHandleWait(xbox->s_mbox_emptyslots);
+	// printf("******%d Done waiting on mbox empty slot\n", cpid);
 	while(true) {
-		SemHandleWait(s_buff_emptyslots);
+		// SemHandleWait(s_buff_emptyslots);
 		while(LockHandleAcquire(l_buff) != SYNC_SUCCESS);
 		for(ibuff = 0; ibuff < MBOX_NUM_BUFFERS; ibuff++) {
 			if(mbox_buffers[ibuff].inuse == false) {
@@ -207,12 +208,14 @@ int MboxSend(mbox_t handle, int length, void* message) {
 		if(ibuff != MBOX_NUM_BUFFERS) {
 			// buffers are not full
 			mbox_buffers[ibuff].inuse = true;
+			LockHandleRelease(l_buff);
 			break;
 		}
 		LockHandleRelease(l_buff);
 	}
-
+	// printf("=%d is waiting on mbox lock\n", cpid);
 	while(LockHandleAcquire(xbox->l_mbox) != SYNC_SUCCESS);
+	// printf("==%d has acquired mbox lock\n", cpid);
 	xbox->cbobi[xbox->tail_cbobi] = ibuff;
 	xbox->tail_cbobi = (xbox->tail_cbobi + 1) % MBOX_MAX_BUFFERS_PER_MBOX;
 	for(i = 0; i < length; i++) {
@@ -222,6 +225,7 @@ int MboxSend(mbox_t handle, int length, void* message) {
 	mbox_buffers[ibuff].inuse = true;
 	SemHandleSignal(xbox->s_mbox_fillslots);
 	LockHandleRelease(xbox->l_mbox);
+	// printf("===%d has released mbox lock\n", cpid);
 
 	return MBOX_SUCCESS;
 }
@@ -248,11 +252,16 @@ int MboxRecv(mbox_t handle, int maxlength, void* message) {
 	int i;
 	mbox* xbox = &mboxes[handle];
 	char* cmessage = (char*) message;
+
 	if(xbox->opened_pids[cpid] == false) {
 		return MBOX_FAIL;
 	}
+	// printf("***%d Waiting on mbox filled slot\n", cpid);
 	SemHandleWait(xbox->s_mbox_fillslots);
+	// printf("******%d Done waiting on mbox filled slot\n", cpid);
+	// printf("=%d is waiting on mbox lock\n", cpid);
 	while(LockHandleAcquire(xbox->l_mbox) != SYNC_SUCCESS);
+	// printf("==%d has acquired mbox lock\n", cpid);
 	ibuff = xbox->cbobi[xbox->head_cbobi];
 	if(ibuff < 0) {
 		printf("Invalid message buffer index from cbobi.head: %d\n", xbox->head_cbobi);
@@ -273,9 +282,10 @@ int MboxRecv(mbox_t handle, int maxlength, void* message) {
 	xbox->cbobi[xbox->head_cbobi] = -1; // invalidate the cbobi
 	mbox_buffers[ibuff].inuse = false;
 	xbox->head_cbobi = (xbox->head_cbobi + 1) % MBOX_MAX_BUFFERS_PER_MBOX;
-	SemHandleSignal(s_buff_emptyslots);
+	// SemHandleSignal(s_buff_emptyslots);
 	SemHandleSignal(xbox->s_mbox_emptyslots);
 	LockHandleRelease(xbox->l_mbox);
+	// printf("===%d has released mbox lock\n", cpid);
 
 	return mbox_buffers[ibuff].length;
 }
