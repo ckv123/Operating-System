@@ -6,16 +6,16 @@
 void main (int argc, char *argv[])
 {
   int numprocs;
-  const int num_molecules = 6;
-  sem_t h_procs_sem;              // Semaphore used to wait until all spawned processes have completed
+  const int num_molecules = 7;
+  mbox_t h_procs_mbox;              // Semaphore used to wait until all spawned processes have completed
   mbox_t h_n2_mbox;
   mbox_t h_n_mbox;
   mbox_t h_h2o_mbox;
   mbox_t h_h2_mbox;
   mbox_t h_o2_mbox;
   mbox_t h_no2_mbox;
-  mbox_t* mail_boxes[6] = { &h_n2_mbox, &h_n_mbox, &h_h2o_mbox, &h_h2_mbox, &h_o2_mbox, &h_no2_mbox };
-  char h_procs_sem_str[10];       // Used as command-line argument to pass page_mapped handle to new processes
+  mbox_t* mail_boxes[7] = { &h_procs_mbox, &h_n2_mbox, &h_n_mbox, &h_h2o_mbox, &h_h2_mbox, &h_o2_mbox, &h_no2_mbox };
+  char h_procs_mbox_str[10];       // Used as command-line argument to pass page_mapped handle to new processes
   char h_n2_mbox_str[10];
   char h_n_mbox_str[10];
   char h_h2o_mbox_str[10];
@@ -86,43 +86,34 @@ void main (int argc, char *argv[])
   numprocs = num_n2 + num_h2o + num_break_n2+ num_break_h2o + num_make_no2;
   Printf("Creating %d processes\n", numprocs);
 
-  // Create semaphore to not exit this process until all other processes 
-  // have signalled that they are complete.  To do this, we will initialize
-  // the semaphore to (-1) * (number of signals), where "number of signals"
-  // should be equal to the number of processes we're spawning - 1.  Once 
-  // each of the processes has signaled, the semaphore should be back to
-  // zero and the final sem_wait below will return.
-  if ((h_procs_sem = sem_create(-(numprocs-1))) == SYNC_FAIL) {
-    Printf("Bad sem_create in "); Printf(argv[0]); Printf("\n");
-    Exit();
-  }
-
-  ditoa(h_procs_sem, h_procs_sem_str);
+  ditoa(h_procs_mbox, h_procs_mbox_str);
   
   // Now we can create the processes.  Note that you MUST end your call to
   // process_create with a NULL argument so that the operating system
   // knows how many arguments you are sending.
   for(i = 0; i < num_n2; i++) {
-    process_create(INJECT_N2, 0, 0, h_procs_sem_str, h_n2_mbox_str, NULL);
+    process_create(INJECT_N2, 0, 0, h_procs_mbox_str, h_n2_mbox_str, NULL);
   }
   for(i = 0; i < num_h2o; i++) {
-    process_create(INJECT_H2O, 0, 0, h_procs_sem_str, h_h2o_mbox_str, NULL);
+    process_create(INJECT_H2O, 0, 0, h_procs_mbox_str, h_h2o_mbox_str, NULL);
   }
   for(i = 0; i < num_break_n2; i++) {
-    process_create(BREAK_N2, 0, 0, h_procs_sem_str, h_n2_mbox_str, h_n_mbox_str, NULL);
+    process_create(BREAK_N2, 0, 0, h_procs_mbox_str, h_n2_mbox_str, h_n_mbox_str, NULL);
   }
   for(i = 0; i < num_break_h2o; i++) {
-    process_create(BREAK_H2O, 0, 0, h_procs_sem_str, h_h2o_mbox_str, h_h2_mbox_str, h_o2_mbox_str, num_break_h2o_str, NULL);
+    process_create(BREAK_H2O, 0, 0, h_procs_mbox_str, h_h2o_mbox_str, h_h2_mbox_str, h_o2_mbox_str, num_break_h2o_str, NULL);
   }
   for(i = 0; i < num_make_no2; i++) {
-    process_create(MAKE_NO2, 0, 0, h_procs_sem_str, h_n_mbox_str, h_o2_mbox_str, h_no2_mbox_str, num_make_no2_str, NULL);
+    process_create(MAKE_NO2, 0, 0, h_procs_mbox_str, h_n_mbox_str, h_o2_mbox_str, h_no2_mbox_str, num_make_no2_str, NULL);
   }
   Printf("All Processes created\n");
 
   // And finally, wait until all spawned processes have finished.
-  if (sem_wait(h_procs_sem) != SYNC_SUCCESS) {
-    Printf("Bad semaphore s_procs_completed (%d) in ", h_procs_sem); Printf(argv[0]); Printf("\n");
-    Exit();
+  for(i = 0; i < numprocs; i++) {
+    if (mbox_recv(h_procs_mbox, 0, NULL) == MBOX_FAIL) {
+      Printf("makeprocs (%d): Could not map the virtual address to the memory!\n", getpid());
+      Exit();
+    }
   }
   Printf("All other processes completed, exiting main process.\n");
 }
