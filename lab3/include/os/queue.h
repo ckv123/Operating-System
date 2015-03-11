@@ -71,10 +71,6 @@ int AQueueMoveAfter(Queue *q, Link *after, Link *l);
 // and sets *l = NULL
 int AQueueRemove (Link **l);
 
-// Removes link "l" from the queue that it belongs to
-// and sets *l = NULL
-int AQueueRelease (Link *l);
-
 // Initializes the Queue module
 int AQueueModuleInit ();
 

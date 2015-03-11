@@ -151,6 +151,30 @@ int AQueueRemove (Link **pl) {
   return QUEUE_SUCCESS;
 }
 
+/////////////////////////////////////////////////////////////////
+// Removes link "l" from the queue that it belongs to, and
+// adds it back to the global queue of free links.
+/////////////////////////////////////////////////////////////////
+int AQueueRelease (Link *l) {
+  dbprintf('q', "AQueueRelese: releasing link from old queue\n");
+
+  if (!l) return QUEUE_FAIL;
+  if (!l->queue) return QUEUE_FAIL;
+
+  // First, fix the queue's first and last pointers
+  if (AQueueFirst(l->queue) == l) l->queue->first = l->next; // l was first item on queue
+  if (AQueueLast(l->queue) == l)  l->queue->last = l->prev;  // l was last item on queue
+
+  // Next, reconnect the list around l
+  if (l->prev) l->prev->next = l->next;
+  if (l->next) l->next->prev = l->prev;
+
+  // Update the number of items in the queue
+  l->queue->nitems--;
+
+  return QUEUE_SUCCESS;
+}
+
 //-------------------------------------------------------------------------
 
 ///////////////////////////////////////////////////////

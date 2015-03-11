@@ -17,7 +17,6 @@ void main (int argc, char *argv[])
   // Convert the command-line strings into integers for use as handles
   program_index = dstrtol(argv[1], NULL, 10);
   s_procs_completed = dstrtol(argv[2], NULL, 10);
-
   // Now print messages to see if priority scheduling is working
   for(i=0; i<30; i++) {
     Printf("spawn_me (%d): %c%d\n", getpid(), 'A'+program_index, i);

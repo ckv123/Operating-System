@@ -49,6 +49,7 @@ typedef struct PCB {
   int resume_jiffie;
   int sleep_jiffie;
   int total_jiffies;
+  int wakeup_jiffies;
 
   int priority;
   double estcpu;
@@ -105,6 +106,7 @@ void ProcessYield();
 #define USER_PROCESS_BASE_PRIORITY 50
 #define KERNEL_PROCESS_BASE_PRIORITY 50
 #define PROCESS_LOAD 1
+#define JIFFIES_PER_SECOND 1000
 
 void ProcessRecalcPriority(PCB *pcb);
 inline int WhichQueue(PCB *pcb);
@@ -112,9 +114,11 @@ void ProcessInsertRunning(PCB *pcb);
 void ProcessDecayEstcpu(PCB *pcb);
 void ProcessDecayEstcpuSleep(PCB *pcb, int time_asleep_jiffies);
 PCB *ProcessFindHighestPriorityPCB();
+int RunnableProcessesExists();
 void ProcessDecayAllEstcpus();
 void ProcessFixRunQueues();
-int ProcessCountAutowake();
+int SleepingProcessesExists();
 void ProcessPrintRunQueues();
+void ProcessUserWakeup();
 
 #endif	/* __process_h__ */
