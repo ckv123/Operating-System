@@ -5,8 +5,6 @@
 
 void main (int argc, char *argv[])
 {
-
-  // process_create(BREAK_H2O, h_procs_sem_str, h_h2o_sem, h_o2_sem, num_break_h2o_str, NULL);
   mbox_t h_procs_mbox;  // Semaphore to signal the original process that we're done
   mbox_t h_h2o_mbox;
   mbox_t h_o2_mbox;

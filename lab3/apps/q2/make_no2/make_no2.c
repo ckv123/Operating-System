@@ -5,8 +5,6 @@
 
 void main (int argc, char *argv[])
 {
-
-  // process_create(MAKE_NO2, h_procs_sem_str, h_n_sem_str, h_o2_sem_str, num_make_no2_str, NULL);
   mbox_t h_procs_mbox;  // Semaphore to signal the original process that we're done
   mbox_t h_n_mbox;
   mbox_t h_o2_mbox;

@@ -15,4 +15,4 @@ clean:
 	cd make_no2; make clean
 
 run:
-	cd ../../bin; dlxsim -x os.dlx.obj -a -u makeprocs.dlx.obj 4 4; ee469_fixterminal
+	cd ../../bin; dlxsim -x os.dlx.obj -a -u makeprocs.dlx.obj 4 5; ee469_fixterminal
