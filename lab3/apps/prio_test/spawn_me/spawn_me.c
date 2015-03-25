@@ -9,10 +9,10 @@ void main (int argc, char *argv[])
   int program_index;
   int i=0,j=0;             // Loop index variables
 
-  if (argc != 3) { 
-    Printf("Usage: %s <program index> <handle_to_page_mapped_semaphore> (argc was %d)\n", argc); 
+  if (argc != 3) {
+    Printf("Usage: %s <program index> <handle_to_page_mapped_semaphore> (argc was %d)\n", argc);
     Exit();
-  } 
+  }
 
   // Convert the command-line strings into integers for use as handles
   program_index = dstrtol(argv[1], NULL, 10);
@@ -20,6 +20,7 @@ void main (int argc, char *argv[])
   // Now print messages to see if priority scheduling is working
   for(i=0; i<30; i++) {
     Printf("spawn_me (%d): %c%d\n", getpid(), 'A'+program_index, i);
+    sleep(10);
     for(j=0; j<50000; j++);  // just busy-wait awhile
   }
 
