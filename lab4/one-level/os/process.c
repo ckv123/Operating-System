@@ -65,8 +65,8 @@ uint32 get_argument(char *string);
 //
 //----------------------------------------------------------------------
 void ProcessModuleInit () {
-  int		i;
-
+  int	i;
+  int j;
   dbprintf ('p', "Entering ProcessModuleInit\n");
   AQueueInit (&freepcbs);
   AQueueInit (&runQueue);
@@ -86,6 +86,9 @@ void ProcessModuleInit () {
     //-------------------------------------------------------
     // STUDENT: Initialize the PCB's page table here.
     //-------------------------------------------------------
+    for(j = 0; j < MEM_PAGE_TBL_SIZE; j++) {
+      pcbs[i].pagetable[j] = 0;
+    }
 
     // Finally, insert the link into the queue
     if (AQueueInsertFirst(&freepcbs, pcbs[i].l) != QUEUE_SUCCESS) {
@@ -137,7 +140,9 @@ void ProcessFreeResources (PCB *pcb) {
   //------------------------------------------------------------
   // STUDENT: Free any memory resources on process death here.
   //------------------------------------------------------------
-
+  for(i = 0; i < pcb->npages; i++) {
+    MemoryFreePte(pcb->pagetable[i]);
+  }
 
   ProcessSetStatus (pcb, PROCESS_STATUS_FREE);
 }
