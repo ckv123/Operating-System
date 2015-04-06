@@ -28,9 +28,12 @@
 
 #define	MEM_PAGESIZE (1 << MEM_L1FIELD_FIRST_BITNUM)
 // MEM_ADDRESS_OFFSET_MASK should be the bit mask required to get just the "offset" portion of an address.
-#define	MEM_ADDRESS_OFFSET_MASK (MEM_PAGE_SIZE - 1)
+#define	MEM_ADDRESS_OFFSET_MASK (MEM_PAGESIZE - 1)
+// Number of page table entries
 #define	MEM_PAGE_TBL_SIZE ((MEM_MAX_VIRTUAL_ADDRESS + 1) >> MEM_L1FIELD_FIRST_BITNUM)
 #define	MEM_PTE_MASK (~(MEM_PTE_VALID | MEM_PTE_DIRTY | MEM_PTE_READONLY))
 
+#define MEM_ADDRESS_TO_PAGE(address) ((address) >> MEM_L1FIELD_FIRST_BITNUM)
+#define MEM_ADDRESS_TO_OFFSET(address) ((address) & MEM_ADDRESS_OFFSET_MASK)
 
 #endif	// _memory_constants_h_

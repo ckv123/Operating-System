@@ -381,6 +381,7 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
   uint32 offset;           // Used in parsing command line argument strings, holds offset (in bytes) from 
                            // beginning of the string to the current argument.
   uint32 initial_user_params_bytes;  // total number of bytes in initial user parameters array
+  int newPage;
 
 
   intrs = DisableIntrs ();
@@ -414,15 +415,48 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
   //----------------------------------------------------------------------
   // Allocate 1 page for system stack, 1 page for user stack (at top of
   // virtual address space), and 4 pages for user code and global data.
-
   //---------------------------------------------------------
   // STUDENT: allocate pages for a new process here.  The
   // code below assumes that you set the "stackframe" variable
   // equal to the last 4-byte-aligned address in physical page
   // for the system stack.
   //---------------------------------------------------------
+  // Pages for code and global data
+  pcb->npages = 4;
+  for(i = 0; i < pcb->npages; i++) {
+    newPage = MemoryAllocPage();
+    if(newPage == MEM_FAIL) {
+      printf ("FATAL: couldn't allocate memory - no free pages!\n");
+      ProcessFreeResources (pcb);
+      return PROCESS_FORK_FAIL;
+    }
+    pcb->pagetable[i] = MemorySetupPte (newPage);
+  }
+  // user stack
+  pcb->npages += 1;
+  newPage = MemoryAllocPage();
+  if(newPage == MEM_FAIL) {
+    printf ("FATAL: couldn't allocate user stack - no free pages!\n");
+    ProcessFreeResources (pcb);
+    return PROCESS_FORK_FAIL;
+  }
+  pcb->pagetable[MEM_ADDRESS_TO_PAGE(MEM_MAX_VIRTUAL_ADDRESS)] = MemorySetupPte (newPage);
 
+  // for system stack
+  newPage = MemoryAllocPage ();
+  if(newPage == MEM_FAIL) {
+    printf ("FATAL: couldn't allocate system stack - no free pages!\n");
+    ProcessFreeResources (pcb);
+    return PROCESS_FORK_FAIL;
+  }
 
+  pcb->sysStackArea = newPage * MEM_PAGESIZE;
+  //----------------------------------------------------------------------
+  // Stacks grow down from the top.  The current system stack pointer has
+  // to be set to the bottom of the interrupt stack frame, which is at the
+  // high end (address-wise) of the system stack.
+  stackframe = (uint32 *)(pcb->sysStackArea + MEM_PAGESIZE - 4);
+  dbprintf('p', "ProcessFork: SystemStack page=%d sysstackarea=0x%x\n", newPage, pcb->sysStackArea);
 
   // Now that the stack frame points at the bottom of the system stack memory area, we need to
   // move it up (decrement it) by one stack frame size because we're about to fill in the
@@ -435,6 +469,9 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
   // The current stack frame pointer is set to the same thing.
   pcb->currentSavedFrame = stackframe;
 
+  dbprintf ('p', "Setting up PCB @ 0x%x (sys stack=0x%x, mem=0x%x, size=0x%x)\n", 
+    (int)pcb, pcb->sysStackArea, pcb->pagetable[0], pcb->npages * MEM_PAGESIZE);
+
   //----------------------------------------------------------------------
   // This section sets up the stack frame for the process.  This is done
   // so that the frame looks to the interrupt handler like the process
@@ -445,19 +482,33 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
 
   // The previous stack frame pointer is set to 0, meaning there is no
   // previous frame.
-  dbprintf('m', "ProcessFork: stackframe = 0x%x\n", (int)stackframe);
+  dbprintf('p', "ProcessFork: stackframe = 0x%x\n", (int)stackframe);
   stackframe[PROCESS_STACK_PREV_FRAME] = 0;
 
   //----------------------------------------------------------------------
   // STUDENT: setup the PTBASE, PTBITS, and PTSIZE here on the current
   // stack frame.
   //----------------------------------------------------------------------
+  // Set the base of the level 1 page table.  If there's only one page
+  // table level, this is it.  For 2-level page tables, put the address
+  // of the level 1 page table here.  For 2-level page tables, we'll also
+  // have to build up the necessary tables....
+  stackframe[PROCESS_STACK_PTBASE] = (uint32)(&(pcb->pagetable[0]));
+
+  // Set the size (maximum number of entries) of the level 1 page table.
+  // In our case, it's just one page, but it could be larger.
+  stackframe[PROCESS_STACK_PTSIZE] = MEM_PAGE_TBL_SIZE;
+
+  // Set the number of bits for both the level 1 and level 2 page tables.
+  // This can be changed on a per-process basis if desired.  For now,
+  // though, it's fixed.
+  stackframe[PROCESS_STACK_PTBITS] = (MEM_L1FIELD_FIRST_BITNUM << 16) + MEM_L1FIELD_FIRST_BITNUM;
 
   if (isUser) {
     dbprintf ('p', "About to load %s\n", name);
     fd = ProcessGetCodeInfo (name, &start, &codeS, &codeL, &dataS, &dataL);
     if (fd < 0) {
-      // Free newpage and pcb so we don't run out...
+      // Free newPage and pcb so we don't run out...
       ProcessFreeResources (pcb);
       return (-1);
     }
@@ -481,7 +532,8 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
     // STUDENT: setup the initial user stack pointer here as the top
     // of the process's virtual address space (4-byte aligned).
     //----------------------------------------------------------------------
-
+    stackframe[PROCESS_STACK_USER_STACKPOINTER] = MEM_MAX_VIRTUAL_ADDRESS - 3;
+    dbprintf('p', "ProcessFork: UserStack usrsp=0x%x\n", stackframe[PROCESS_STACK_USER_STACKPOINTER]);
 
     //--------------------------------------------------------------------
     // This part is setting up the initial user stack with argc and argv.
@@ -956,9 +1008,9 @@ int GetPidFromAddress(PCB *pcb) {
 // ProcessKill destroys the current process and then calls ProcessSchedule.
 // Therefore, you can only call ProcessKill from inside of a trap.
 //--------------------------------------------------------------------------
-void ProcessKill() {
-  dbprintf('m', "ProcessKill: killing processid %d\n", GetCurrentPid());
-  ProcessDestroy(currentPCB);
+void ProcessKill(PCB* pcb) {
+  dbprintf('m', "ProcessKill: killing processid %d\n", GetPidFromAddress(pcb));
+  ProcessDestroy(pcb);
   ProcessSchedule();
 }
 
