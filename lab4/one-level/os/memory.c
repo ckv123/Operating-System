@@ -142,7 +142,7 @@ int MemoryMoveBetweenSpaces (PCB *pcb, unsigned char *system, unsigned char *use
     // Calculate the number of bytes to copy this time.  If we have more bytes
     // to copy than there are left in the current page, we'll have to just copy to the
     // end of the page and then go through the loop again with the next page.
-    // In other words, "bytesToCopy" is the minimum of the bytes left on this page 
+    // In other words, "bytesToCopy" is the minimum of the bytes left on this page
     // and the total number of bytes left to copy ("n").
 
     // First, compute number of bytes left in this page.  This is just
@@ -151,7 +151,7 @@ int MemoryMoveBetweenSpaces (PCB *pcb, unsigned char *system, unsigned char *use
     // MEM_ADDRESS_OFFSET_MASK should be the bit mask required to get just the
     // "offset" portion of an address.
     bytesToCopy = MEM_PAGESIZE - ((uint32)curUser & MEM_ADDRESS_OFFSET_MASK);
-    
+
     // Now find minimum of bytes in this page vs. total bytes left to copy
     if (bytesToCopy > n) {
       bytesToCopy = n;
@@ -190,17 +190,17 @@ int MemoryCopyUserToSystem (PCB *pcb, unsigned char *from,unsigned char *to, int
 }
 
 //---------------------------------------------------------------------
-// MemoryPageFaultHandler is called in traps.c whenever a page fault 
+// MemoryPageFaultHandler is called in traps.c whenever a page fault
 // (better known as a "seg fault" occurs.  If the address that was
-// being accessed is on the stack, we need to allocate a new page 
+// being accessed is on the stack, we need to allocate a new page
 // for the stack.  If it is not on the stack, then this is a legitimate
 // seg fault and we should kill the process.  Returns MEM_SUCCESS
 // on success, and kills the current process on failure.  Note that
-// fault_address is the beginning of the page of the virtual address that 
+// fault_address is the beginning of the page of the virtual address that
 // caused the page fault, i.e. it is the vaddr with the offset zero-ed
 // out.
 //
-// Note: The existing code is incomplete and only for reference. 
+// Note: The existing code is incomplete and only for reference.
 // Feel free to edit.
 //---------------------------------------------------------------------
 int MemoryPageFaultHandler(PCB *pcb) {
@@ -209,8 +209,20 @@ int MemoryPageFaultHandler(PCB *pcb) {
   int vpage;
   int newPage;
 
-  dbprintf('m', "MemoryPageFaultHandler (%d): usrsp=0x%x faddr=0x%x\n", GetPidFromAddress(pcb), usrsp, faddr); 
-  if(faddr >= usrsp) {
+  dbprintf('m', "MemoryPageFaultHandler (%d): usrsp=0x%x faddr=0x%x\n", GetPidFromAddress(pcb), usrsp, faddr);
+  if(faddr > MEM_MAX_VIRTUAL_ADDRESS) {
+    printf("PID %d: Accessed a memory beyond max virtual address", GetPidFromAddress(pcb));
+    dbprintf ('m', "MemoryPageFaultHandler (%d): Forcing a user exit faddr=0x%x\n", GetPidFromAddress(pcb), faddr);
+    ProcessKill(pcb);
+    return MEM_FAIL;
+  }
+  else if(faddr < usrsp) {
+    printf("PID %d: Segfaulted", GetPidFromAddress(pcb));
+    dbprintf ('m', "MemoryPageFaultHandler (%d): Forcing a user exit faddr=0x%x\n", GetPidFromAddress(pcb), faddr);
+    ProcessKill(pcb);
+    return MEM_FAIL;
+  }
+  else {
     vpage = MEM_ADDRESS_TO_PAGE(faddr);
     newPage = MemoryAllocPage();
     if(newPage == MEM_FAIL) {
@@ -220,12 +232,6 @@ int MemoryPageFaultHandler(PCB *pcb) {
     pcb->pagetable[vpage] = MemorySetupPte(newPage);
     pcb->npages += 1;
     return MEM_SUCCESS;
-  }
-  else {
-    printf("Segfault in PID: %d", GetPidFromAddress(pcb));
-    dbprintf ('m', "Forcing a user exit on %d\n", GetPidFromAddress(pcb));
-    ProcessKill(pcb);
-    return MEM_FAIL;
   }
 }
 
@@ -250,7 +256,7 @@ int MemoryAllocPage() {
   for(bitnum = 0; (vector & (1 << bitnum)) == 0; bitnum++){}
   freemap[mapnum]  &= invert(1 << bitnum);
   vector = (mapnum * 32) + bitnum; // use same var to store free page number
-  dbprintf('m', "MemoryAllocPage: allocated memory from map=%d, page=%d\n", mapnum, vector); 
+  dbprintf('m', "MemoryAllocPage: allocated memory from map=%d, page=%d\n", mapnum, vector);
   nfreepages -= 1;
   return vector; // page number on memory space
 }

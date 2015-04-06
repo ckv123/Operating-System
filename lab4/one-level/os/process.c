@@ -143,8 +143,9 @@ void ProcessFreeResources (PCB *pcb) {
   for(i = 0; i < pcb->npages; i++) {
     MemoryFreePte(pcb->pagetable[i]);
   }
-
+  MemoryFreePage (pcb->sysStackArea / MEMORY_PAGE_SIZE);
   ProcessSetStatus (pcb, PROCESS_STATUS_FREE);
+  dbprintf ('p', "ProcessFreeResources: function complete\n");
 }
 
 //----------------------------------------------------------------------
@@ -211,7 +212,7 @@ void ProcessSchedule () {
     exitsim ();	// NEVER RETURNS
   }
 
-  // Move the front of the queue to the end if currentPCB is not on sleep queue.  
+  // Move the front of the queue to the end if currentPCB is not on sleep queue.
   // The running process was the one in front.
   if (currentPCB->flags & PROCESS_STATUS_RUNNABLE) {
     AQueueMoveAfter(&runQueue, AQueueLast(&runQueue), AQueueFirst(&runQueue));
@@ -378,7 +379,7 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
                                            // initial_user_params[3] = address of string for argv[1]
                                            //                           ...
   uint32 argc=0;           // running counter for number of arguments
-  uint32 offset;           // Used in parsing command line argument strings, holds offset (in bytes) from 
+  uint32 offset;           // Used in parsing command line argument strings, holds offset (in bytes) from
                            // beginning of the string to the current argument.
   uint32 initial_user_params_bytes;  // total number of bytes in initial user parameters array
   int newPage;
@@ -460,7 +461,7 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
 
   // Now that the stack frame points at the bottom of the system stack memory area, we need to
   // move it up (decrement it) by one stack frame size because we're about to fill in the
-  // initial stack frame that will be loaded for this PCB when it gets switched in by 
+  // initial stack frame that will be loaded for this PCB when it gets switched in by
   // ProcessSchedule the first time.
   stackframe -= PROCESS_STACK_FRAME_SIZE;
 
@@ -469,7 +470,7 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
   // The current stack frame pointer is set to the same thing.
   pcb->currentSavedFrame = stackframe;
 
-  dbprintf ('p', "Setting up PCB @ 0x%x (sys stack=0x%x, mem=0x%x, size=0x%x)\n", 
+  dbprintf ('p', "Setting up PCB @ 0x%x (sys stack=0x%x, mem=0x%x, size=0x%x)\n",
     (int)pcb, pcb->sysStackArea, pcb->pagetable[0], pcb->npages * MEM_PAGESIZE);
 
   //----------------------------------------------------------------------
@@ -553,7 +554,7 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
     // number of arguments found in the string.  The first call to get_argument
     // should return 0 as the offset of the first string.
     offset = get_argument((char *)param);
-   
+
     // Compute the addresses in user space of where each string for the command line arguments
     // begins.  These addresses make up the argv array.
     for(argc=0; argc < MAX_ARGS; argc++) {
@@ -575,7 +576,7 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
     // Now argc can be stored properly
     initial_user_params[0] = argc;
 
-    // Compute where initial_user_params[3] will be copied in user space as the 
+    // Compute where initial_user_params[3] will be copied in user space as the
     // base of the array of string addresses.  The entire initial_user_params array
     // of uint32's will be copied onto the stack.  We'll move the stack pointer by
     // the necessary amount, then start copying the array.  Therefore, initial_user_params[3]
@@ -583,8 +584,8 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
     // arguments (argc).
     initial_user_params[1] = stackframe[PROCESS_STACK_USER_STACKPOINTER] - (argc*sizeof(uint32));
 
-    // Now copy the actual memory.  Remember that stacks grow down from the top of memory, so 
-    // we need to move the stack pointer first, then do the copy.  The "+2", as before, is 
+    // Now copy the actual memory.  Remember that stacks grow down from the top of memory, so
+    // we need to move the stack pointer first, then do the copy.  The "+2", as before, is
     // because initial_user_params[0] is argc, and initial_user_params[1] is argv.
     initial_user_params_bytes = (argc + 2) * sizeof(uint32);
 
@@ -842,7 +843,7 @@ void main (int argc, char *argv[])
   int numargs=0;
   char allargs[SIZE_ARG_BUFF];
   int allargs_offset = 0;
-  
+
   debugstr[0] = '\0';
 
   printf ("Got %d arguments.\n", argc);
@@ -853,11 +854,11 @@ void main (int argc, char *argv[])
   }
 
   FsModuleInit ();
-  for (i = 0; i < argc; i++) 
+  for (i = 0; i < argc; i++)
   {
-    if (argv[i][0] == '-') 
+    if (argv[i][0] == '-')
     {
-      switch (argv[i][1]) 
+      switch (argv[i][1])
       {
       case 'D':
 	dstrcpy (debugstr, argv[++i]);
@@ -879,9 +880,9 @@ void main (int argc, char *argv[])
 		codeL);
 	printf ("File %s -> data @ 0x%08x (size=0x%08x)\n", argv[i], dataS,
 		dataL);
-	while ((n = ProcessGetFromFile (fd, buf, &addr, sizeof (buf))) > 0) 
+	while ((n = ProcessGetFromFile (fd, buf, &addr, sizeof (buf))) > 0)
 	{
-	  for (j = 0; j < n; j += 4) 
+	  for (j = 0; j < n; j += 4)
 	  {
 	    printf ("%08x: %02x%02x%02x%02x\n", addr + j - n, buf[j], buf[j+1],
 		    buf[j+2], buf[j+3]);
@@ -892,7 +893,7 @@ void main (int argc, char *argv[])
       }
       case 'u':
 	userprog = argv[++i];
-        base = i; // Save the location of the user program's name 
+        base = i; // Save the location of the user program's name
 	break;
       default:
 	printf ("Option %s not recognized.\n", argv[i]);
@@ -964,9 +965,9 @@ unsigned findpid(PCB *pcb)
 
 
 //----------------------------------------------------------------
-// get_argument works a lot like strtok in the standard C string 
+// get_argument works a lot like strtok in the standard C string
 // library.  We store a static copy of the string inside the
-// function, so that we can return pointers to each successive 
+// function, so that we can return pointers to each successive
 // argument as we are called multiple times on the same string.
 // The purpose of this function is to parse a string of words
 // separated by null's ('\0') into the individual words.  Passing "NULL"
@@ -979,12 +980,12 @@ uint32 get_argument(char *string) {
   static char *str;
   static int location=0;
   int location2;
-  
+
   if(string) {
     str=string;
     location = 0;
   }
-    
+
   location2 = location;
 
   if (str[location] == '\0') return 0;
