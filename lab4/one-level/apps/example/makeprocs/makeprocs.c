@@ -1,7 +1,7 @@
 #include "usertraps.h"
 #include "misc.h"
 
-const char * procs[] = { "test1.dlx.obj", "test2.dlx.obj", "test3.dlx.obj", "test4.dlx.obj", "test5.dlx.obj", "test6.dlx.obj" };
+char * procs[] = { "test1.dlx.obj", "test2.dlx.obj", "test3.dlx.obj", "test4.dlx.obj", "test5.dlx.obj", "test6.dlx.obj" };
 
 void main (int argc, char *argv[])
 {
@@ -23,7 +23,7 @@ void main (int argc, char *argv[])
   ditoa(s_procs_completed, s_procs_completed_str);
   // Create Hello World processes
 
-  for(i = 4; i < num; i++) {
+  for(i = 0; i < num; i++) {
     Printf("-------------------------------------------------------------------------------------\n");
     process_create(procs[i], s_procs_completed_str, NULL);
     if (sem_wait(s_procs_completed) != SYNC_SUCCESS) {

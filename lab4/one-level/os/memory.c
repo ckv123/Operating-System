@@ -97,6 +97,7 @@ uint32 MemoryTranslateUserToSystem (PCB *pcb, uint32 addr) {
   int page    =   MEM_ADDRESS_TO_PAGE(addr);
   int offset  =   MEM_ADDRESS_TO_OFFSET(addr);
 
+  // dbprintf('m', "MemoryTranslateUserToSystem (%d): addr 0x%x access\n", GetPidFromAddress(pcb), addr);
   if(pcb->pagetable[page] & MEM_PTE_VALID) {
     return ((pcb->pagetable[page] & MEM_PTE_MASK) | offset);
   }
@@ -206,27 +207,23 @@ int MemoryCopyUserToSystem (PCB *pcb, unsigned char *from,unsigned char *to, int
 int MemoryPageFaultHandler(PCB *pcb) {
   uint32 usrsp = pcb->currentSavedFrame[PROCESS_STACK_USER_STACKPOINTER]; // user stack pointer
   uint32 faddr = pcb->currentSavedFrame[PROCESS_STACK_FAULT]; // fault address
+  int pg_faddr = MEM_ADDRESS_TO_PAGE(faddr);
+  int pg_usrsp = MEM_ADDRESS_TO_PAGE(usrsp);
   int vpage;
   int newPage;
 
-  dbprintf('m', "MemoryPageFaultHandler (%d): usrsp=0x%x faddr=0x%x\n", GetPidFromAddress(pcb), usrsp, faddr);
-  if(faddr > MEM_MAX_VIRTUAL_ADDRESS) {
-    printf("PID %d: Accessed a memory beyond max virtual address", GetPidFromAddress(pcb));
-    dbprintf ('m', "MemoryPageFaultHandler (%d): Forcing a user exit faddr=0x%x\n", GetPidFromAddress(pcb), faddr);
-    ProcessKill(pcb);
-    return MEM_FAIL;
-  }
-  else if(faddr < usrsp) {
-    printf("PID %d: Segfaulted", GetPidFromAddress(pcb));
+  dbprintf('m', "MemoryPageFaultHandler (%d): usrsp=0x%x pgusrsp=%d faddr=0x%x pgfaddr=%d\n", GetPidFromAddress(pcb), usrsp, pg_usrsp, faddr, pg_faddr);
+  if(pg_faddr < pg_usrsp) {
+    printf("Exiting PID %d: Segfaulted\n", GetPidFromAddress(pcb));
     dbprintf ('m', "MemoryPageFaultHandler (%d): Forcing a user exit faddr=0x%x\n", GetPidFromAddress(pcb), faddr);
     ProcessKill(pcb);
     return MEM_FAIL;
   }
   else {
-    vpage = MEM_ADDRESS_TO_PAGE(faddr);
+    vpage = pg_faddr;
     newPage = MemoryAllocPage();
     if(newPage == MEM_FAIL) {
-      printf("FATAL: not enough free pages for %d", GetPidFromAddress(pcb));
+      printf("FATAL: not enough free pages for %d\n", GetPidFromAddress(pcb));
       ProcessKill();
     }
     pcb->pagetable[vpage] = MemorySetupPte(newPage);
@@ -276,7 +273,7 @@ void MemoryFreePte(uint32 pte) {
 void MemoryFreePage(uint32 page) {
   MemorySetFreemap(page, 1);
   nfreepages += 1;
-  dbprintf('m', "MemoryFreePage: freedpage=0x%x nfreepages=%d", page, nfreepages);
+  dbprintf('m', "MemoryFreePage: freedpage=0x%x nfreepages=%d\n", page, nfreepages);
 }
 
 void* malloc(PCB* pcb, int memsize) {

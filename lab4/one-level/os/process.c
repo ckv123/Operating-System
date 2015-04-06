@@ -143,7 +143,7 @@ void ProcessFreeResources (PCB *pcb) {
   for(i = 0; i < pcb->npages; i++) {
     MemoryFreePte(pcb->pagetable[i]);
   }
-  MemoryFreePage (pcb->sysStackArea / MEMORY_PAGE_SIZE);
+  MemoryFreePage (pcb->sysStackArea / MEM_PAGESIZE);
   ProcessSetStatus (pcb, PROCESS_STATUS_FREE);
   dbprintf ('p', "ProcessFreeResources: function complete\n");
 }
@@ -521,7 +521,7 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
 	      dataL);
 
     while ((n = ProcessGetFromFile (fd, buf, &addr, sizeof (buf))) > 0) {
-      dbprintf ('p', "Placing %d bytes at vaddr %08x.\n", n, addr - n);
+      dbprintf ('i', "Placing %d bytes at vaddr %08x.\n", n, addr - n);
       // Copy the data to user memory.  Note that the user memory needs to
       // have enough space so that this copy will succeed!
       MemoryCopySystemToUser (pcb, buf, (char *)(addr - n), n);
