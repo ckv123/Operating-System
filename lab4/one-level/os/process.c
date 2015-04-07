@@ -140,7 +140,10 @@ void ProcessFreeResources (PCB *pcb) {
   //------------------------------------------------------------
   // STUDENT: Free any memory resources on process death here.
   //------------------------------------------------------------
-  for(i = 0; i < pcb->npages; i++) {
+  for(i = 0; i < 4; i++) {
+    MemoryFreePte(pcb->pagetable[i]);
+  }
+  for(i = usrsp; i <= MEM_ADDRESS_TO_PAGE(MEM_MAX_VIRTUAL_ADDRESS); i++) {
     MemoryFreePte(pcb->pagetable[i]);
   }
   MemoryFreePage (pcb->sysStackArea / MEM_PAGESIZE);

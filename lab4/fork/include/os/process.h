@@ -79,6 +79,7 @@ extern PCB	*currentPCB;
 // grader knows that they are defined in this file.
 //---------------------------------------------------------
 #define PROCESS_FORK_FAIL -1
+#define PROCESS_FORK_SUCCESS 1
 
 
 //---------------------------------------------------------
@@ -101,7 +102,7 @@ void ProcessKill();
 //-------------------------------------------------------
 // Put any functions prototypes that you define here.
 //-------------------------------------------------------
-
-
+int ProcessRealFork (PCB* ppcb);
+void ProcessForkTestPrints(PCB* pcb);
 
 #endif	/* __process_h__ */

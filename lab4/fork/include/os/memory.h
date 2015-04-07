@@ -30,6 +30,10 @@ uint32 MemorySetupPte (uint32 page);
 void MemoryFreePte(uint32 pte);
 // book keeping
 void MemoryFreePage(uint32 page);
+// increase pagerefs
+void MemorySharePage(uint32 pte);
+// Readonly page access
+void MemoryRopAccessHandler(PCB* pcb);
 
 void* malloc(PCB* pcb, int memsize);
 int mfree(PCB* pcb, void* ptr);

@@ -123,6 +123,7 @@ void ProcessSetStatus (PCB *pcb, int status) {
 //----------------------------------------------------------------------
 void ProcessFreeResources (PCB *pcb) {
   int i = 0;
+  int usrsp = MEM_ADDRESS_TO_PAGE(pcb->currentSavedFrame[PROCESS_STACK_USER_STACKPOINTER]);
 
   // Allocate a new link for this pcb on the freepcbs queue
   if ((pcb->l = AQueueAllocLink(pcb)) == NULL) {
@@ -140,7 +141,10 @@ void ProcessFreeResources (PCB *pcb) {
   //------------------------------------------------------------
   // STUDENT: Free any memory resources on process death here.
   //------------------------------------------------------------
-  for(i = 0; i < pcb->npages; i++) {
+  for(i = 0; i < 4; i++) {
+    MemoryFreePte(pcb->pagetable[i]);
+  }
+  for(i = usrsp; i <= MEM_ADDRESS_TO_PAGE(MEM_MAX_VIRTUAL_ADDRESS); i++) {
     MemoryFreePte(pcb->pagetable[i]);
   }
   MemoryFreePage (pcb->sysStackArea / MEM_PAGESIZE);
@@ -345,6 +349,115 @@ void ProcessDestroy (PCB *pcb) {
 //----------------------------------------------------------------------
 static void ProcessExit () {
   exit ();
+}
+
+int ProcessRealFork (PCB* ppcb) {
+  PCB *cpcb;                // Holds pcb while we build it for this process.
+  int intrs;               // Stores previous interrupt settings.
+  int newPage;
+  int i;
+  uint32 *stackframe;
+
+
+  intrs = DisableIntrs ();
+  dbprintf ('I', "Old interrupt value was 0x%x.\n", intrs);
+  dbprintf ('p', "Entering ProcessRealFork ppcb=%d\n", GetPidFromAddress(ppcb));
+  // Get a free PCB for the new process
+  if (AQueueEmpty(&freepcbs)) {
+    printf ("FATAL error: no free processes!\n");
+    exitsim (); // NEVER RETURNS!
+  }
+  cpcb = (PCB *)AQueueObject(AQueueFirst (&freepcbs));
+  dbprintf ('p', "Got a link @ 0x%x\n", (int)(cpcb->l));
+  if (AQueueRemove (&(cpcb->l)) != QUEUE_SUCCESS) {
+    printf("FATAL ERROR: could not remove link from freepcbsQueue in ProcessFork!\n");
+    exitsim();
+  }
+  // This prevents someone else from grabbing this process
+  ProcessSetStatus (cpcb, PROCESS_STATUS_RUNNABLE);
+  
+  // cpcb shares code and global data with ppcb
+  for(i = 0; i < 4; i++) {
+    ppcb->pagetable[i] |= MEM_PTE_READONLY;
+    MemorySharePage(ppcb->pagetable[i]);
+  }
+  // user stack is also shared at first
+  ppcb->pagetable[MEM_ADDRESS_TO_PAGE(MEM_MAX_VIRTUAL_ADDRESS)] |= MEM_PTE_READONLY; 
+  MemorySharePage(ppcb->pagetable[MEM_ADDRESS_TO_PAGE(MEM_MAX_VIRTUAL_ADDRESS)]);
+
+  // copy parent pcb to child pcb
+  bcopy((char *)ppcb, (char *)cpcb, sizeof(PCB));
+  // At this point, the PCB is allocated and nobody else can get it.
+  // However, it's not in the run queue, so it won't be run.  Thus, we
+  // can turn on interrupts here.
+  RestoreIntrs (intrs);
+
+  // for system stack
+  newPage = MemoryAllocPage ();
+  if(newPage == MEM_FAIL) {
+    printf ("FATAL: couldn't allocate system stack - no free pages!\n");
+    ProcessFreeResources (cpcb);
+    return PROCESS_FORK_FAIL;
+  }
+  cpcb->sysStackArea = newPage * MEM_PAGESIZE;
+  // copy system stack from ppcb to cpcb
+  bcopy((char *)(ppcb->sysStackArea), (char *)(cpcb->sysStackArea), MEM_PAGESIZE);
+  dbprintf('p', "ProcessRealFork: SystemStack page=%d sysstackarea=0x%x\n", newPage, cpcb->sysStackArea);
+  // printf("ProcessRealFork: parent_sysstackarea=0x%x child_sysstackarea=0x%x\n", ppcb->sysStackArea, cpcb->sysStackArea);
+
+  //----------------------------------------------------------------------
+  // Stacks grow down from the top.  The current system stack pointer has
+  // to be set to the bottom of the interrupt stack frame, which is at the
+  // high end (address-wise) of the system stack.
+  stackframe = (uint32 *)(cpcb->sysStackArea + MEM_PAGESIZE - 4);
+
+  // Now that the stack frame points at the bottom of the system stack memory area, we need to
+  // move it up (decrement it) by one stack frame size because we're about to fill in the
+  // initial stack frame that will be loaded for this PCB when it gets switched in by
+  // ProcessSchedule the first time.
+  stackframe -= PROCESS_STACK_FRAME_SIZE;
+
+  // The system stack pointer is set to the base of the current interrupt stack frame.
+  cpcb->sysStackPtr = stackframe;
+  // The current stack frame pointer is set to the same thing.
+  cpcb->currentSavedFrame = stackframe;
+
+  dbprintf ('p', "Setting up PCB @ 0x%x (sys stack=0x%x, mem=0x%x, size=0x%x)\n",
+    (int)cpcb, cpcb->sysStackArea, cpcb->pagetable[0], cpcb->npages * MEM_PAGESIZE);
+
+  //----------------------------------------------------------------------
+  // STUDENT: setup the PTBASE, PTBITS, and PTSIZE here on the current
+  // stack frame.
+  //----------------------------------------------------------------------
+  // Set the base of the level 1 page table.  If there's only one page
+  // table level, this is it.  For 2-level page tables, put the address
+  // of the level 1 page table here.  For 2-level page tables, we'll also
+  // have to build up the necessary tables....
+  stackframe[PROCESS_STACK_PTBASE] = (uint32)(&(cpcb->pagetable[0]));
+
+  // Place the PCB onto the run queue.
+  intrs = DisableIntrs ();
+  if ((cpcb->l = AQueueAllocLink(cpcb)) == NULL) {
+    printf("FATAL ERROR: could not get link for forked PCB in ProcessFork!\n");
+    exitsim();
+  }
+  if (AQueueInsertLast(&runQueue, cpcb->l) != QUEUE_SUCCESS) {
+    printf("FATAL ERROR: could not insert link into runQueue in ProcessFork!\n");
+    exitsim();
+  }
+  RestoreIntrs (intrs);
+  ProcessSetResult(cpcb, 0);
+  ProcessSetResult(ppcb, GetPidFromAddress(cpcb));
+  
+  // TEST PRINTS
+  printf("\nIn ProcessRealFork:\n");
+  printf("----- Page table of parent process PID:%d -----\n", GetPidFromAddress(ppcb));
+  ProcessForkTestPrints(ppcb);
+  printf("\n----- Page table of child process PID: %d -----\n", GetPidFromAddress(cpcb));
+  ProcessForkTestPrints(cpcb);
+
+  dbprintf ('p', "Leaving ProcessRealFork cpcbid=%d\n", GetPidFromAddress(cpcb));
+  return PROCESS_FORK_SUCCESS;
 }
 
 
@@ -1016,3 +1129,18 @@ void ProcessKill(PCB* pcb) {
 }
 
 
+// this is used for testing fork
+void ProcessForkTestPrints(PCB* pcb) {
+  int i;
+  uint32 pte;
+  int page;
+  printf("++ Printing valid PTEs of PID: %d\n", GetPidFromAddress(pcb));
+  for(i = 0; i < MEM_PAGE_TBL_SIZE; i++) {
+    pte = pcb->pagetable[i];
+    page = MEM_ADDRESS_TO_PAGE(pte & MEM_PTE_MASK);
+    if(pte & MEM_PTE_VALID) {
+      printf("pagetable[%d=0x%x]=>0x%x ppage=%d\n", i, i*MEM_PAGESIZE, pcb->pagetable[i], page);
+    }
+  }
+  printf("== Done printing valid PTEs of PID: %d\n\n", GetPidFromAddress(pcb));
+}

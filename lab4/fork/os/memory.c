@@ -14,9 +14,11 @@
 // num_pages = size_of_memory / size_of_one_page
 // 1 bit per page. therefore num_pages / 32
 static uint32 freemap[(MEM_MAX_SIZE >> MEM_L1FIELD_FIRST_BITNUM) / 32];
+static char pagerefs[(MEM_MAX_SIZE >> MEM_L1FIELD_FIRST_BITNUM)];
 static uint32 pagestart;
 static int nfreepages;
 static int freemapmax;
+static int physicalpgmax;
 
 //----------------------------------------------------------------------
 //
@@ -65,19 +67,24 @@ inline void MemorySetFreemap(int page, int state) {
 void MemoryModuleInit() {
   int i;
   int curpage;
-  int maxpage = MemoryGetSize() / MEM_PAGESIZE;
-
+  physicalpgmax = MemoryGetSize() / MEM_PAGESIZE;
   pagestart = (lastosaddress + MEM_PAGESIZE - 4) / MEM_PAGESIZE;
-  freemapmax = (maxpage + 31) / 32;
-  dbprintf('m', "Map has %d entries, memory size is 0x%x.\n", freemapmax, maxpage);
+  freemapmax = (physicalpgmax + 31) / 32;
+  dbprintf('m', "Map has %d entries, memory size is 0x%x.\n", freemapmax, physicalpgmax);
   dbprintf('m', "Free pages start with page  # 0x%x.\n", pagestart);
+  for(i = 0; i < physicalpgmax; i++) {
+    pagerefs[i] = 0;
+  }
   for(i = 0; i < freemapmax; i++) {
     // All pages are considered in use initially
     // so that there no partially initialized freemap entries for sure
     freemap[i] = 0;
   }
   nfreepages = 0;
-  for(curpage = pagestart; curpage < maxpage; curpage++) {
+  for(curpage = 0; curpage < pagestart; curpage++) {
+    pagerefs[curpage] = 1;
+  }
+  for(curpage = pagestart; curpage < physicalpgmax; curpage++) {
     nfreepages += 1;
     MemorySetFreemap(curpage, 1);
   }
@@ -232,6 +239,32 @@ int MemoryPageFaultHandler(PCB *pcb) {
   }
 }
 
+void MemoryRopAccessHandler(PCB* pcb) {
+  uint32 faddr = pcb->currentSavedFrame[PROCESS_STACK_FAULT]; // fault address
+  int vpage = MEM_ADDRESS_TO_PAGE(faddr);
+  int ppage = MEM_ADDRESS_TO_PAGE(pcb->pagetable[vpage] & MEM_PTE_MASK);
+  int npage;
+
+  dbprintf('m', "MemoryRopAccessHandler: page=%d pagerefs=%d\n", ppage, pagerefs[ppage]);
+  printf("\nIn MemoryRopAccessHandler: [virtual address=0x%x page=%d] [physical page=%d pagerefs=%d]\n", faddr, vpage, ppage, pagerefs[ppage]);
+  printf("----- Page table of process PID: %d before handling RopAccess ------\n", GetPidFromAddress(pcb));
+  ProcessForkTestPrints(pcb);
+
+  if(pagerefs[ppage] > 1) {
+    npage = MemoryAllocPage();
+    printf("****** I'm copying page %d to %d ******\n\n", ppage, npage);
+    pcb->pagetable[vpage] = MemorySetupPte (npage);
+    bcopy((char *)(faddr), (char *)(npage * MEM_PAGESIZE), MEM_PAGESIZE);
+    pagerefs[ppage] -= 1;
+  }
+  else {
+    pcb->pagetable[vpage] &= invert(MEM_PTE_READONLY); 
+  }
+
+  printf("----- Page table of process PID: %d after handling RopAccess -----\n", GetPidFromAddress(pcb));
+  ProcessForkTestPrints(pcb);
+}
+
 // searches the freemap for an empty slot in memory
 // returns the free pagenumber
 int MemoryAllocPage() {
@@ -253,6 +286,7 @@ int MemoryAllocPage() {
   for(bitnum = 0; (vector & (1 << bitnum)) == 0; bitnum++){}
   freemap[mapnum]  &= invert(1 << bitnum);
   vector = (mapnum * 32) + bitnum; // use same var to store free page number
+  pagerefs[vector] = 1;
   dbprintf('m', "MemoryAllocPage: allocated memory from map=%d, page=%d\n", mapnum, vector);
   nfreepages -= 1;
   return vector; // page number on memory space
@@ -269,8 +303,22 @@ void MemoryFreePte(uint32 pte) {
   MemoryFreePage((pte & MEM_PTE_MASK) / MEM_PAGESIZE);
 }
 
+void MemorySharePage(uint32 pte) {
+  int page = ((pte & MEM_PTE_MASK) / MEM_PAGESIZE);
+  pagerefs[page] += 1;
+  dbprintf('m', "MemorySharePage: page=%d refs=%d\n", page, pagerefs[page]);
+  return;
+}
+
 // book keeping
 void MemoryFreePage(uint32 page) {
+  pagerefs[page] -= 1;
+  dbprintf('m', "MemoryFreePage: pagerefs[%d]=%d (after decrementing refs)\n", page, pagerefs[page]);
+  // printf("MemoryFreePage: pagerefs[%d]=%d (after decrementing refs)\n", page, pagerefs[page]);
+  if(pagerefs[page] > 0) {
+    return;
+  }
+  pagerefs[page] = 0;
   MemorySetFreemap(page, 1);
   nfreepages += 1;
   dbprintf('m', "MemoryFreePage: freedpage=0x%x nfreepages=%d\n", page, nfreepages);
