@@ -124,6 +124,7 @@ void ProcessSetStatus (PCB *pcb, int status) {
 void ProcessFreeResources (PCB *pcb) {
   int i = 0;
   int usrsp = MEM_ADDRESS_TO_PAGE(pcb->currentSavedFrame[PROCESS_STACK_USER_STACKPOINTER]);
+  
   // Allocate a new link for this pcb on the freepcbs queue
   if ((pcb->l = AQueueAllocLink(pcb)) == NULL) {
     printf("FATAL ERROR: could not get Queue Link in ProcessFreeResources!\n");
@@ -140,7 +141,7 @@ void ProcessFreeResources (PCB *pcb) {
   //------------------------------------------------------------
   // STUDENT: Free any memory resources on process death here.
   //------------------------------------------------------------
-  for(i = 0; i < 4; i++) {
+  for(i = 0; i < 5; i++) {
     MemoryFreePte(pcb->pagetable[i]);
   }
   for(i = usrsp; i <= MEM_ADDRESS_TO_PAGE(MEM_MAX_VIRTUAL_ADDRESS); i++) {
@@ -425,8 +426,8 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
   // equal to the last 4-byte-aligned address in physical page
   // for the system stack.
   //---------------------------------------------------------
-  // Pages for code and global data
-  pcb->npages = 4;
+  // Pages for code and global data and Heap
+  pcb->npages = 5;
   for(i = 0; i < pcb->npages; i++) {
     newPage = MemoryAllocPage();
     if(newPage == MEM_FAIL) {
@@ -436,6 +437,21 @@ int ProcessFork (VoidFunc func, uint32 param, char *name, int isUser) {
     }
     pcb->pagetable[i] = MemorySetupPte (newPage);
   }
+  // Initialize nodes in pool
+  for (i = 1; i <= MEM_HEAP_MAX_NODES; i++) {
+    pcb->htree_array[i].parent = NULL;
+    pcb->htree_array[i].cleft = NULL;
+    pcb->htree_array[i].crght = NULL;
+    pcb->htree_array[i].index = i;
+    pcb->htree_array[i].size = -1;
+    pcb->htree_array[i].addr = -1;
+    pcb->htree_array[i].inuse = 0;
+    pcb->htree_array[i].order = -1;
+  }
+  // Initialize Heap tree
+  pcb->htree_array[1].size = MEM_PAGESIZE;
+  pcb->htree_array[1].addr = 0;
+  pcb->htree_array[1].order = 7;
   // user stack
   pcb->npages += 1;
   newPage = MemoryAllocPage();
