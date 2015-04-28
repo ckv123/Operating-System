@@ -2,14 +2,14 @@
 #define __DISK_H__
 
 // Name of file which represents the "hard disk"
-#define DISK_FILENAME "/tmp/ee469gXX.img"
+#define DISK_FILENAME "/tmp/ee469g11.img"
 //#define DISK_FILENAME "/tmp/ee469g99.img"
 
 // Number of bytes in one physical disk block
 #define DISK_BLOCKSIZE 256 
 
 typedef struct disk_block {
-  char data[DISK_BLOCKSIZE]; // This assumes that DISK_BLOCKSIZE is a multiple of 4 (for byte alignment)
+   char data[DISK_BLOCKSIZE]; // This assumes that DISK_BLOCKSIZE is a multiple of 4 (for byte alignment)
 } disk_block;
 
 
