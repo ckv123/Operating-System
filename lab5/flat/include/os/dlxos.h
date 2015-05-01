@@ -35,7 +35,7 @@ extern char  debugstr[];
 
 #ifndef NULL
 #define NULL ((void *)0x0)
-#endif 
+#endif
 
 extern int  CurrentIntrs ();
 extern int  SetIntrs (int);

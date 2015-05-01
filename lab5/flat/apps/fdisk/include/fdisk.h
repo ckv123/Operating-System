@@ -18,7 +18,7 @@ typedef unsigned int uint32;
 #endif
 
 //STUDENT: define additional parameters here, if any
-#define FDISK_FS_BLOCKSIZE 512
+#define FDISK_FS_BLOCKSIZE DFS_BLOCKSIZE // from dfs_shared.h
 #define FDISK_NUM_INODES  192
 
 // This gets disk_block struct to use with disk_write function
