@@ -19,6 +19,7 @@ int min(int a, int b);
 int max(int a, int b);
 void bzero(char *mem, int num_bytes);
 void bcopy(char *src, char *dst, int num_bytes);
+int bncmp(char *s1, char *s2, int num);
 
 inline
 int

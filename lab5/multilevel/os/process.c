@@ -79,6 +79,7 @@ void ProcessModuleInit () {
     }
     // Next, set the pcb to be available
     pcbs[i].flags = PROCESS_STATUS_FREE;
+    pcbs[i].currentDir = 0;
     // Finally, insert the link into the queue
     if (AQueueInsertFirst(&freepcbs, pcbs[i].l) != QUEUE_SUCCESS) {
       printf("FATAL ERROR: could not insert PCB link into queue in ProcessModuleInit!\n");
@@ -122,6 +123,7 @@ void ProcessFreeResources (PCB *pcb) {
   }
   // Set the pcb's status to available
   pcb->flags = PROCESS_STATUS_FREE;
+  pcb->currentDir = 0;
   // Insert the link into the freepcbs queue
   if (AQueueInsertLast(&freepcbs, pcb->l) != QUEUE_SUCCESS) {
     printf("FATAL ERROR: could not insert PCB link into freepcbs queue in ProcessFreeResources!\n");
@@ -839,6 +841,8 @@ void main (int argc, char *argv[])
 
   DfsModuleInit();
   dbprintf ('i', "After initializing dfs filesystem.\n");
+  FileModuleInit();
+  dbprintf ('i', "After initializing file module.\n");
 
   // Setup command line arguments
   if (userprog != (char *)0) {

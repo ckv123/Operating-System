@@ -4,7 +4,7 @@
   dfs_shared.h has DFS_MIN_BLOCKSIZE which helps in determining DFS_FBV_MAX_NUM_WORDS
   dfs_shared.h has DFS_INODES_MAX_NUM which sets it to 200 - its not really used by user program but we just kept it in shared since its more consistent keep that with FBV_MAX_NUM_W for better readability
 
-3) For ostests
+4) For ostests
    First run `make run` with fdisk to format the disk
    Then run `make run` once to create hello file inode and its related
    Then run `make run` again to
@@ -14,4 +14,6 @@
     - the test for indirect block addressing test uses 5160 as a test address
       - as 512 is the DFS block size that was used to format the disk
 
-4)
+5) 6) make and make run
+
+7) Incomplete will be giving errors

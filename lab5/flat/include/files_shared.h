@@ -5,7 +5,7 @@
 #define FILE_SEEK_END 2
 #define FILE_SEEK_CUR 3
 
-#define FILE_MAX_FILENAME_LENGTH 44 // is the same as in dfs_shared.h DFS_FILENAME_LENGTH
+#define FILE_MAX_FILENAME_LENGTH DFS_FILENAME_LENGTH // is the same as in dfs_shared.h DFS_FILENAME_LENGTH
 #define FILE_MAX_READWRITE_BYTES 4096
 
 typedef struct file_descriptor {
